@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from opsi.process import CaptureOutputMode
 from ruamel.yaml import YAML
 
 from opsicli.config import Config, ConfigItem
@@ -146,6 +147,8 @@ def test_edit_config() -> None:
 				mock_run_command.assert_called_once()
 				called_args = mock_run_command.call_args[0][0]
 				assert str(config_file) in called_args
+				# Output must not be captured, otherwise terminal based editors are not visible
+				assert mock_run_command.call_args.kwargs.get("capture_output") == CaptureOutputMode.NONE
 
 
 def test_service_config() -> None:

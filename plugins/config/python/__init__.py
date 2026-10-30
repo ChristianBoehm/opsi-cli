@@ -16,7 +16,7 @@ import rich_click as click
 from click.shell_completion import CompletionItem
 from opsi.logging import get_logger
 from opsi.opsi.service.client import ServiceClient
-from opsi.process import run_command
+from opsi.process import CaptureOutputMode, run_command
 
 from opsicli.cli_helpers import OPSICLIGroup
 from opsicli.config import DEFAULT_SESSION_LIFETIME, ConfigValueSource, config
@@ -122,7 +122,8 @@ def config_edit(system: bool) -> None:
 	config_file.touch(exist_ok=True)
 	cmd = get_editor() + [str(config_file)]
 	logger.notice("Opening config file '%s' with command: %s", config_file, cmd)
-	run_command(cmd)
+	# Do not capture the output, terminal based editors need direct access to the terminal
+	run_command(cmd, capture_output=CaptureOutputMode.NONE)
 
 
 @cli.group(short_help="Configuration of opsi services")
