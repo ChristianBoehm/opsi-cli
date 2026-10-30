@@ -245,6 +245,36 @@ def test_config_service_add() -> None:
 		assert config.get_values()["service"] == "test2"
 
 
+def test_config_service_add_password_prompt() -> None:
+	config = Config()
+
+	with temp_context() as tmp_path:
+		# Config service add writes config file. Explicitly set here to avoid wiping config file of the user.
+		config.config_file_user = tmp_path / "conffile.conf"
+
+		# --ask-password prompts for the password, even if an url is given
+		with patch("getpass.getpass", return_value="promptedpassword") as getpass:
+			exit_code, _stdout, _stderr = run_cli(
+				["config", "service", "add", "--name=test", "--username=testuser", "--ask-password", "testhost"],
+				service_config=False,
+			)
+		assert exit_code == 0
+		getpass.assert_called_once()
+		for service in config.get_values()["services"]:
+			if service.name == "test":
+				assert service.password == "promptedpassword"
+				break
+		else:
+			raise AssertionError("Service not found in config")
+
+		exit_code, _stdout, stderr = run_cli(
+			["config", "service", "add", "--name=test", "--password=testpassword", "--ask-password", "testhost"],
+			service_config=False,
+		)
+		assert exit_code != 0
+		assert "--password and --ask-password are mutually exclusive" in stderr
+
+
 def test_config_service_remove() -> None:
 	config = Config()
 

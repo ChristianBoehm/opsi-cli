@@ -162,6 +162,14 @@ def service_list() -> None:
 @click.option("--name", type=str, required=False, default=None)
 @click.option("--username", type=str, required=False, default=None)
 @click.option("--password", type=str, required=False, default=None)
+@click.option(
+	"--ask-password",
+	is_flag=True,
+	type=bool,
+	required=False,
+	default=False,
+	help="Prompt for the password instead of passing it on the command line. Reads from stdin if no terminal is available.",
+)
 @click.option("--default", is_flag=True, type=bool, required=False, default=False)
 @click.option("--system", is_flag=True, type=bool, required=False, default=False)
 @click.option("--session-lifetime", type=int, required=False, default=DEFAULT_SESSION_LIFETIME)
@@ -170,6 +178,7 @@ def service_add(
 	name: str | None = None,
 	username: str | None = None,
 	password: str | None = None,
+	ask_password: bool = False,
 	default: bool = False,
 	system: bool = False,
 	session_lifetime: int = DEFAULT_SESSION_LIFETIME,
@@ -177,6 +186,9 @@ def service_add(
 	"""
 	opsi-cli config service add subcommand.
 	"""
+	if password and ask_password:
+		raise click.UsageError("--password and --ask-password are mutually exclusive")
+
 	conf_source = ConfigValueSource.CONFIG_FILE_SYSTEM if system else ConfigValueSource.CONFIG_FILE_USER
 	interactive = False
 	if not url:
@@ -194,7 +206,7 @@ def service_add(
 	if not username and interactive:
 		username = str(prompt("Enter the username to use for authentication (optional)")) or None
 
-	if not password and interactive:
+	if ask_password or (not password and interactive):
 		password = (
 			str(
 				prompt(
