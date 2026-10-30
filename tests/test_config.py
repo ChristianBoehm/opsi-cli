@@ -7,6 +7,8 @@
 test_config
 """
 
+import os
+import stat
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -127,6 +129,31 @@ def test_read_write_config() -> None:
 		config.read_config_files()
 		assert config.get_values().get("output_format") == "auto"
 		assert config.output_format == "auto"
+
+
+@pytest.mark.not_windows
+def test_config_file_permissions() -> None:
+	config = Config()
+	with temp_context() as tmp_path:
+		conffile = tmp_path / "conffile.conf"
+		config.config_file_user = conffile
+		old_umask = os.umask(0o022)
+		try:
+			# New config file is created readable by the owner only
+			config.write_config_files(user_only=True)
+			assert stat.S_IMODE(conffile.stat().st_mode) == 0o600
+
+			# Existing config file readable by others is restricted on write
+			conffile.chmod(0o664)
+			config.write_config_files(user_only=True)
+			assert stat.S_IMODE(conffile.stat().st_mode) == 0o600
+
+			# System config file keeps group permissions
+			conffile.chmod(0o664)
+			config._restrict_config_file_permissions(conffile, "config_file_system")
+			assert stat.S_IMODE(conffile.stat().st_mode) == 0o660
+		finally:
+			os.umask(old_umask)
 
 
 def test_edit_config() -> None:

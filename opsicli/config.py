@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import platform
+import stat
 import sys
 from collections.abc import Callable
 from copy import deepcopy
@@ -631,10 +632,33 @@ class Config:
 			if not config_file.parent.exists():
 				logger.debug("Creating directory %s", config_file.parent)
 				config_file.parent.mkdir(parents=True)
-			with open(config_file, "w", encoding="utf-8") as file:  # IDEA: save file and restore on error
+			if config_file.exists():
+				self._restrict_config_file_permissions(config_file, file_type)
+			# The config file can contain service passwords, create it readable by the owner only
+			with open(
+				os.open(config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8"
+			) as file:  # IDEA: save file and restore on error
 				logger.debug("Writing file %s", config_file)
 				logger.trace("Writing data %s", data)
 				YAML().dump(data, file)
+
+	@staticmethod
+	def _restrict_config_file_permissions(config_file: Path, file_type: str) -> None:
+		if os.name == "nt":
+			# Windows has no POSIX mode bits. There is only a user config file in %APPDATA%,
+			# which inherits the ACL of the user profile (user, SYSTEM and Administrators only).
+			return
+		# The user config file is restricted to the owner.
+		# The system config file keeps group permissions, which may be used to share it with an admin group.
+		restricted_bits = 0o077 if file_type == "config_file_user" else 0o007
+		mode = stat.S_IMODE(config_file.stat().st_mode)
+		if not mode & restricted_bits:
+			return
+		logger.notice("Restricting permissions of %s from %o to %o", config_file, mode, mode & ~restricted_bits)
+		try:
+			config_file.chmod(mode & ~restricted_bits)
+		except OSError as err:
+			logger.warning("Failed to restrict permissions of %s: %s", config_file, err)
 
 	def set_logging_config(self) -> None:
 		if self.quiet:
